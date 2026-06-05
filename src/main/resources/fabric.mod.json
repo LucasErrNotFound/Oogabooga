@@ -1,0 +1,41 @@
+{
+	"schemaVersion": 1,
+	"id": "oogabooga",
+	"version": "${version}",
+	"name": "Oogabooga",
+	"description": "An unstoppable hunter stalks your every move. Your only salvation: slay the Ender Dragon.",
+	"authors": [
+		"LucasErrNotFound"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "GPL-3.0-only",
+	"icon": "assets/oogabooga/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.yukimura.oogabooga.Oogabooga"
+		],
+		"client": [
+			"com.yukimura.oogabooga.client.OogaboogaClient"
+		],
+		"fabric-datagen": [
+			"com.yukimura.oogabooga.client.OogaboogaDataGenerator"
+		]
+	},
+	"mixins": [
+		"oogabooga.mixins.json",
+		{
+			"config": "oogabooga.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.2",
+		"minecraft": "~26.1",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

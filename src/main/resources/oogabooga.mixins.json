@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"package": "com.yukimura.oogabooga.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"ExampleMixin",
+		"ConnectionAccessor",
+		"PlayerListMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
