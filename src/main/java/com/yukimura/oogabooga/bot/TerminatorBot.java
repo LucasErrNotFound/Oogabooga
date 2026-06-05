@@ -28,11 +28,13 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import org.jetbrains.annotations.Nullable;
@@ -107,6 +109,7 @@ public class TerminatorBot extends ServerPlayer {
     private static final double ATTACK_REACH = 3.0;
     private static final double ATTACK_REACH_SQ = ATTACK_REACH * ATTACK_REACH;
     private static final float FULL_CHARGE_THRESHOLD = 0.9f;
+    private static final float SHIELD_BREAK_CHARGE_THRESHOLD = 0.45f;
     private static final int TOOL_COMMIT_TICKS = 10;
     private static final int CRIT_COMBO_INTERVAL_TICKS = 140;
     private static final int CRIT_COMBO_AIRBORNE_TIMEOUT = 25;
@@ -380,7 +383,9 @@ public class TerminatorBot extends ServerPlayer {
             return;
         }
 
-        if (this.isWithinAttackReach(target)) {
+        boolean lineOfSight = this.hasAttackLineOfSight(target);
+
+        if (this.isWithinAttackReach(target) && (lineOfSight || this.critPhase != CritPhase.NONE)) {
             if (this.stackingUp) {
                 this.exitStackUp();
             }
@@ -392,7 +397,7 @@ public class TerminatorBot extends ServerPlayer {
             this.exitCombat();
         }
 
-        if (this.updateArrival(target)) {
+        if (lineOfSight && this.updateArrival(target)) {
             if (this.stackingUp) {
                 this.exitStackUp();
             } else {
@@ -413,8 +418,6 @@ public class TerminatorBot extends ServerPlayer {
         } else if (this.stackingUp) {
             this.exitStackUp();
         }
-
-        this.holdChaseWeapon();
 
         boolean hasPath = this.currentPath != null && !this.currentPath.isEmpty();
         if (hasPath) {
@@ -571,6 +574,23 @@ public class TerminatorBot extends ServerPlayer {
         return deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ <= ATTACK_REACH_SQ;
     }
 
+    private boolean hasAttackLineOfSight(ServerPlayer target) {
+        Vec3 eye = this.getEyePosition();
+        Vec3[] aimPoints = {
+            target.getEyePosition(),
+            target.position().add(0.0, target.getBbHeight() * 0.5, 0.0),
+            target.position()
+        };
+        for (Vec3 point : aimPoints) {
+            BlockHitResult hit = this.level().clip(new ClipContext(
+                    eye, point, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
+            if (hit.getType() == HitResult.Type.MISS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void runCombat(ServerPlayer target) {
         this.inCombat = true;
         this.currentJumpDistance = 0;
@@ -605,7 +625,9 @@ public class TerminatorBot extends ServerPlayer {
         this.setJumping(false);
         Vec3 velocity = this.getDeltaMovement();
         this.setDeltaMovement(0.0, velocity.y, 0.0);
-        if (this.isAttackCharged()) {
+        float requiredCharge = (shieldUp && this.combatTool == CombatTool.AXE)
+                ? SHIELD_BREAK_CHARGE_THRESHOLD : FULL_CHARGE_THRESHOLD;
+        if (this.getAttackStrengthScale(0.5f) > requiredCharge) {
             this.executeAttack(target);
         }
     }
@@ -1328,6 +1350,7 @@ public class TerminatorBot extends ServerPlayer {
         this.setYRot(facing.toYRot());
         this.setYBodyRot(facing.toYRot());
 
+        this.holdBuildBlock();
         BlockPos floorCell = destination.below();
         boolean supported = this.isSolid(floorCell) || this.placeBlockSurvival(floorCell, target);
         if (supported) {
