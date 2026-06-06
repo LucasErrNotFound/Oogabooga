@@ -90,10 +90,19 @@ final class StackUpBuilder {
             return true;
         }
 
+        boolean hasUpwardPath = bot.navigator.reachesTarget() && bot.navigator.maxPathY() >= target.getY() - 1.0;
+
+        if (bot.inHitRecovery()
+                && heightToPlayer > STACK_TRIGGER_MIN_HEIGHT
+                && horizontalSquared <= STACK_OVERRIDE_HORIZONTAL_SQ
+                && bot.isBlockBelow()
+                && !hasUpwardPath) {
+            return true;
+        }
+
         if (heightToPlayer <= STACK_TRIGGER_MIN_HEIGHT || horizontalSquared > STACK_TRIGGER_HORIZONTAL_SQ) {
             return false;
         }
-        boolean hasUpwardPath = bot.navigator.hasPath() && bot.navigator.maxPathY() >= target.getY() - 1.0;
         if (hasUpwardPath) {
             return false;
         }
