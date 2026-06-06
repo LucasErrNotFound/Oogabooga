@@ -35,6 +35,7 @@ import static com.yukimura.oogabooga.bot.BotTuning.BUILD_ITEM;
 import static com.yukimura.oogabooga.bot.BotTuning.CLIMB_EXIT_SPEED;
 import static com.yukimura.oogabooga.bot.BotTuning.CLIMB_SPEED;
 import static com.yukimura.oogabooga.bot.BotTuning.FLUID_ESCAPE_PUSH;
+import static com.yukimura.oogabooga.bot.BotTuning.HIT_RECOVERY_TICKS;
 import static com.yukimura.oogabooga.bot.BotTuning.JUMP_LAUNCH_BASE;
 import static com.yukimura.oogabooga.bot.BotTuning.JUMP_LAUNCH_PER_BLOCK;
 import static com.yukimura.oogabooga.bot.BotTuning.STUCK_FORWARD_PROGRESS;
@@ -67,6 +68,7 @@ public class TerminatorBot extends ServerPlayer {
     boolean cobbleEquipped = false;
     int stuckTicks = 0;
     int noProgressTicks = 0;
+    int recoveryTicks = 0;
 
     private Vec3 previousPosition = Vec3.ZERO;
     private double bestApproachDistanceSq = Double.MAX_VALUE;
@@ -159,6 +161,7 @@ public class TerminatorBot extends ServerPlayer {
             double deltaX = attackingPlayer.getX() - this.getX();
             double deltaZ = attackingPlayer.getZ() - this.getZ();
             this.knockback(0.4, deltaX, deltaZ);
+            this.recoveryTicks = HIT_RECOVERY_TICKS;
             this.hurtDuration = 10;
             this.hurtTime = this.hurtDuration;
             this.markHurt();
@@ -247,6 +250,10 @@ public class TerminatorBot extends ServerPlayer {
         return !this.level().getBlockState(below).getCollisionShape(this.level(), below).isEmpty();
     }
 
+    boolean inHitRecovery() {
+        return this.recoveryTicks > 0;
+    }
+
     @Override
     public void tick() {
         super.tick();
@@ -258,6 +265,9 @@ public class TerminatorBot extends ServerPlayer {
         super.doTick();
         if (this.isHunting) {
             this.runHuntAI();
+        }
+        if (this.recoveryTicks > 0) {
+            this.recoveryTicks--;
         }
     }
 
@@ -301,6 +311,13 @@ public class TerminatorBot extends ServerPlayer {
             return;
         } else if (this.combat.isInCombat()) {
             this.combat.exitCombat();
+        }
+
+        if (this.combat.isWithinAttackReach(target) && !lineOfSight && !this.combat.isCritActive()) {
+            if (this.combat.tryBreakAttackObstruction(target)) {
+                this.updateStuckTracking();
+                return;
+            }
         }
 
         if (lineOfSight && this.updateArrival(target)) {
