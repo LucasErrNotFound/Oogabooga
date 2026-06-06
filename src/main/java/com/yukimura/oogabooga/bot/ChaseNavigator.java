@@ -20,6 +20,7 @@ import static com.yukimura.oogabooga.bot.BotTuning.BREAK_BUDGET_MAX;
 import static com.yukimura.oogabooga.bot.BotTuning.BREAK_BUDGET_MIN;
 import static com.yukimura.oogabooga.bot.BotTuning.BREAK_BUDGET_PER_BLOCK;
 import static com.yukimura.oogabooga.bot.BotTuning.BREAK_GRACE_TICKS;
+import static com.yukimura.oogabooga.bot.BotTuning.FALL_SAVE_BAD_DROP;
 import static com.yukimura.oogabooga.bot.BotTuning.JUMP_BRINK_EDGE;
 import static com.yukimura.oogabooga.bot.BotTuning.JUMP_CROSS_AXIS_TOLERANCE;
 import static com.yukimura.oogabooga.bot.BotTuning.JUMP_TAKEOFF_EDGE;
@@ -47,6 +48,10 @@ final class ChaseNavigator {
 
     boolean hasPath() {
         return this.currentPath != null;
+    }
+
+    boolean reachesTarget() {
+        return this.pathReachesTarget;
     }
 
     void primeRepath() {
@@ -106,7 +111,8 @@ final class ChaseNavigator {
             needsPath = this.currentPath == null
                     || (!midModify && this.ticksSinceRepath >= REPATH_INTERVAL_TICKS)
                     || targetMovedFar
-                    || (!midModify && bot.stuckTicks > STUCK_REPATH_TICKS);
+                    || (!midModify && bot.stuckTicks > STUCK_REPATH_TICKS)
+                    || (!midModify && bot.inHitRecovery() && bot.isBlockBelow() && !bot.combat.isInCombat());
         }
         if (needsPath) {
             if (targetMovedFar) {
@@ -343,10 +349,17 @@ final class ChaseNavigator {
             return;
         }
 
-        bot.wantedForward = 1.0f;
-        bot.setSprinting(!jumpMode || bot.currentJumpDistance > WALK_JUMP_MAX_DISTANCE);
-
         boolean followingRealStep = currentStep != null && this.pathReachesTarget;
+        boolean plannedFall = currentStep != null && currentStep.kind() == MovementKind.FALL;
+        if (!followingRealStep && !plannedFall && !jumpMode && this.dropAheadTooDeep(bodyYaw)) {
+            bot.wantedForward = 0.0f;
+            bot.setSprinting(false);
+            this.primeRepath();
+        } else {
+            bot.wantedForward = 1.0f;
+            bot.setSprinting(!jumpMode || bot.currentJumpDistance > WALK_JUMP_MAX_DISTANCE);
+        }
+
         if (bot.isInWater()) {
             if (followingRealStep) {
                 double verticalDelta = destinationY - bot.getY();
@@ -425,6 +438,27 @@ final class ChaseNavigator {
         boolean headClear =
                 bot.level().getBlockState(frontHead).getCollisionShape(bot.level(), frontHead).isEmpty();
         return feetBlocked && headClear;
+    }
+
+    private boolean dropAheadTooDeep(float bodyYaw) {
+        if (bot.isInWater() || bot.isInLava() || !bot.isBlockBelow()) {
+            return false;
+        }
+        Direction facing = Direction.fromYRot(bodyYaw);
+        BlockPos frontFeet = bot.blockPosition().relative(facing);
+        if (!bot.isPassable(frontFeet) || bot.isSolid(frontFeet.below())) {
+            return false;
+        }
+        for (int depth = 1; depth <= FALL_SAVE_BAD_DROP; depth++) {
+            BlockPos cell = frontFeet.below(depth);
+            if (!bot.level().isLoaded(cell)) {
+                return true;
+            }
+            if (bot.isSolid(cell)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean shouldMomentumJump(float bodyYaw, ServerPlayer target) {
