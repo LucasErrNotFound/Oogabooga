@@ -14,6 +14,7 @@ final class BotTuning {
     static final int REPATH_INTERVAL_TICKS = 20;
     static final int STUCK_REPATH_TICKS = 60;
     static final int NO_PROGRESS_STACK_TICKS = 50;
+    static final int HIT_RECOVERY_TICKS = 12;
     static final double APPROACH_PROGRESS_EPSILON_SQ = 0.5;
     static final double TARGET_MOVED_THRESHOLD_SQUARED = 64.0;
     static final double WAYPOINT_REACHED_DISTANCE_SQUARED = 0.36;
