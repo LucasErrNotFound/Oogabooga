@@ -95,6 +95,45 @@ final class CombatController {
         return false;
     }
 
+    boolean tryBreakAttackObstruction(ServerPlayer target) {
+        Vec3 eye = bot.getEyePosition();
+        Vec3[] aimPoints = {
+            target.getEyePosition(),
+            target.position().add(0.0, target.getBbHeight() * 0.5, 0.0),
+            target.position()
+        };
+        for (Vec3 point : aimPoints) {
+            BlockHitResult hit = bot.level().clip(new ClipContext(
+                    eye, point, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, bot));
+            if (hit.getType() != HitResult.Type.BLOCK) {
+                continue;
+            }
+            BlockPos obstructionPosition = hit.getBlockPos();
+            if (obstructionPosition.equals(target.blockPosition())
+                    || obstructionPosition.equals(target.blockPosition().above())) {
+                continue;
+            }
+            if (!bot.terrain.isBreakableObstruction(obstructionPosition)) {
+                continue;
+            }
+            float yaw = yawToward(
+                    obstructionPosition.getX() + 0.5 - bot.getX(),
+                    obstructionPosition.getZ() + 0.5 - bot.getZ());
+            bot.setYRot(yaw);
+            bot.setYBodyRot(yaw);
+            bot.setSprinting(false);
+            bot.wantedForward = 0f;
+            bot.wantedUpward = 0f;
+            bot.wantedJumping = false;
+            bot.setJumping(false);
+            Vec3 velocity = bot.getDeltaMovement();
+            bot.setDeltaMovement(0.0, velocity.y, 0.0);
+            bot.terrain.progressMine(obstructionPosition);
+            return true;
+        }
+        return false;
+    }
+
     void runCombat(ServerPlayer target) {
         this.inCombat = true;
         bot.currentJumpDistance = 0;
