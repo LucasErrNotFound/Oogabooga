@@ -121,6 +121,7 @@ final class CombatController {
                     obstructionPosition.getZ() + 0.5 - bot.getZ());
             bot.setYRot(yaw);
             bot.setYBodyRot(yaw);
+            bot.lookAtCell(obstructionPosition);
             bot.setSprinting(false);
             bot.wantedForward = 0f;
             bot.wantedUpward = 0f;
@@ -145,6 +146,7 @@ final class CombatController {
         float yaw = yawToward(target.getX() - bot.getX(), target.getZ() - bot.getZ());
         bot.setYRot(yaw);
         bot.setYBodyRot(yaw);
+        bot.lookAtPlayer(target);
         bot.wantedForward = 0f;
         bot.wantedUpward = 0f;
 
