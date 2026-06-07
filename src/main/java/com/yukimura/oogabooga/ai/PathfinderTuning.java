@@ -11,6 +11,7 @@ final class PathfinderTuning {
 
     static final double COST_STRAIGHT = 1.0;
     static final double COST_DIAGONAL = 1.4142135;
+    static final double COST_VERTICAL_HEURISTIC = 1.0;
     static final double COST_STEP_UP_EXTRA = 0.5;
     static final double COST_FALL_BASE = 0.5;
     static final double COST_FALL_PER_BLOCK = 0.1;

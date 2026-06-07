@@ -16,6 +16,7 @@ import java.util.Set;
 import static com.yukimura.oogabooga.ai.PathfinderTuning.BREAK_MAX_ITERATIONS;
 import static com.yukimura.oogabooga.ai.PathfinderTuning.COST_DIAGONAL;
 import static com.yukimura.oogabooga.ai.PathfinderTuning.COST_STRAIGHT;
+import static com.yukimura.oogabooga.ai.PathfinderTuning.COST_VERTICAL_HEURISTIC;
 import static com.yukimura.oogabooga.ai.PathfinderTuning.MAX_SEARCH_RADIUS;
 
 public final class TerminatorPathfinder {
@@ -100,8 +101,10 @@ public final class TerminatorPathfinder {
 
     static double heuristic(BlockPos from, BlockPos to) {
         double deltaX = Math.abs(from.getX() - to.getX());
+        double deltaY = Math.abs(from.getY() - to.getY());
         double deltaZ = Math.abs(from.getZ() - to.getZ());
-        return Math.min(deltaX, deltaZ) * COST_DIAGONAL + Math.abs(deltaX - deltaZ) * COST_STRAIGHT;
+        double horizontal = Math.min(deltaX, deltaZ) * COST_DIAGONAL + Math.abs(deltaX - deltaZ) * COST_STRAIGHT;
+        return horizontal + deltaY * COST_VERTICAL_HEURISTIC;
     }
 
     private static int chebyshevDistance(BlockPos from, BlockPos to) {
