@@ -25,6 +25,7 @@ import static com.yukimura.oogabooga.bot.BotTuning.PILLAR_JUMP_TIMEOUT_TICKS;
 import static com.yukimura.oogabooga.bot.BotTuning.STACK_ABORT_HORIZONTAL_SQ;
 import static com.yukimura.oogabooga.bot.BotTuning.STACK_MAX_BLOCKS;
 import static com.yukimura.oogabooga.bot.BotTuning.STACK_OVERRIDE_HORIZONTAL_SQ;
+import static com.yukimura.oogabooga.bot.BotTuning.STACK_STEEPNESS_RATIO;
 import static com.yukimura.oogabooga.bot.BotTuning.STACK_TRIGGER_HORIZONTAL_SQ;
 import static com.yukimura.oogabooga.bot.BotTuning.STACK_TRIGGER_MIN_HEIGHT;
 
@@ -109,6 +110,15 @@ final class StackUpBuilder {
                 && horizontalSquared <= STACK_OVERRIDE_HORIZONTAL_SQ
                 && bot.isBlockBelow()
                 && !hasUpwardPath) {
+            return true;
+        }
+
+        boolean steepClimb = heightToPlayer > STACK_TRIGGER_MIN_HEIGHT
+                && heightToPlayer * heightToPlayer >= horizontalSquared * STACK_STEEPNESS_RATIO * STACK_STEEPNESS_RATIO;
+        if (steepClimb
+                && !hasUpwardPath
+                && horizontalSquared <= STACK_OVERRIDE_HORIZONTAL_SQ
+                && bot.isBlockBelow()) {
             return true;
         }
 
