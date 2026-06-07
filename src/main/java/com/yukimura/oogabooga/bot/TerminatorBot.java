@@ -55,6 +55,7 @@ public class TerminatorBot extends ServerPlayer {
     final StackUpBuilder stackUp;
     final FluidEscape fluidEscape;
     final FallSave fallSave;
+    final PortalTraveler portal;
 
     private boolean isHunting = false;
     private @Nullable ServerPlayer huntTarget = null;
@@ -81,6 +82,7 @@ public class TerminatorBot extends ServerPlayer {
         this.stackUp = new StackUpBuilder(this);
         this.fluidEscape = new FluidEscape(this);
         this.fallSave = new FallSave(this);
+        this.portal = new PortalTraveler(this);
     }
 
     public static boolean isActive() {
@@ -140,7 +142,10 @@ public class TerminatorBot extends ServerPlayer {
         this.wantedUpward = 0f;
         this.wantedJumping = false;
         this.setSprinting(false);
+        this.setShiftKeyDown(false);
         this.navigator.resetPath();
+        this.navigator.setGoalOverride(null);
+        this.portal.reset();
         this.stuckTicks = 0;
         this.engaged = false;
         this.stackUp.clearPillarCount();
@@ -202,6 +207,20 @@ public class TerminatorBot extends ServerPlayer {
         }
 
         if (this.isInWater()) {
+            if (this.wantedJumping) {
+                float yawRadians = this.getYRot() * ((float) Math.PI / 180.0f);
+                double horizontal = this.wantedForward * FLUID_ESCAPE_PUSH;
+                Vec3 velocity = this.getDeltaMovement();
+                this.setDeltaMovement(
+                        -Mth.sin(yawRadians) * horizontal,
+                        Math.max(velocity.y, 0.42),
+                        Mth.cos(yawRadians) * horizontal);
+                this.move(MoverType.SELF, this.getDeltaMovement());
+                return;
+            }
+            if (this.wantedUpward > 0f) {
+                this.setJumping(true);
+            }
             super.travel(new Vec3(0.0, this.wantedUpward, this.wantedForward));
             return;
         }
@@ -279,12 +298,22 @@ public class TerminatorBot extends ServerPlayer {
             this.wantedUpward = 0f;
             this.wantedJumping = false;
             this.setSprinting(false);
+            this.setShiftKeyDown(false);
+            this.navigator.setGoalOverride(null);
+            this.portal.reset();
             this.terrain.clearMiningProgress();
             return;
         }
         this.huntTarget = target;
 
-        this.lookAtPosition(target.getX(), target.getEyeY(), target.getZ());
+        if (target.level() != this.level()) {
+            this.portal.run(target);
+            this.updateStuckTracking();
+            return;
+        }
+        this.navigator.setGoalOverride(null);
+        this.portal.reset();
+        this.setShiftKeyDown(false);
 
         this.navigator.recomputePathIfNeeded(target);
 
@@ -370,6 +399,7 @@ public class TerminatorBot extends ServerPlayer {
         float yaw = yawToward(target.getX() - this.getX(), target.getZ() - this.getZ());
         this.setYRot(yaw);
         this.setYBodyRot(yaw);
+        this.lookAtPlayer(target);
         Vec3 velocity = this.getDeltaMovement();
         this.setDeltaMovement(0.0, velocity.y, 0.0);
     }
@@ -387,25 +417,38 @@ public class TerminatorBot extends ServerPlayer {
     }
 
     private @Nullable ServerPlayer findNearestRealPlayer() {
-        if (!(this.level() instanceof ServerLevel serverLevel)) {
+        MinecraftServer server = this.level().getServer();
+        if (server == null) {
             return null;
         }
-        ServerPlayer nearest = null;
-        double nearestDistanceSquared = Double.MAX_VALUE;
-        for (ServerPlayer candidate : serverLevel.players()) {
-            if (candidate.getUUID().equals(BOT_UUID) || candidate.isSpectator() || !candidate.isAlive()) {
-                continue;
-            }
-            double distanceSquared = this.distanceToSqr(candidate);
-            if (distanceSquared < nearestDistanceSquared) {
-                nearestDistanceSquared = distanceSquared;
-                nearest = candidate;
+        ServerPlayer nearestSameDimension = null;
+        double nearestSameDimensionSquared = Double.MAX_VALUE;
+        ServerPlayer nearestOtherDimension = null;
+        double nearestOtherDimensionSquared = Double.MAX_VALUE;
+        for (ServerLevel candidateLevel : server.getAllLevels()) {
+            for (ServerPlayer candidate : candidateLevel.players()) {
+                if (candidate.getUUID().equals(BOT_UUID) || candidate.isSpectator() || !candidate.isAlive()) {
+                    continue;
+                }
+                if (candidate.level() == this.level()) {
+                    double distanceSquared = this.distanceToSqr(candidate);
+                    if (distanceSquared < nearestSameDimensionSquared) {
+                        nearestSameDimensionSquared = distanceSquared;
+                        nearestSameDimension = candidate;
+                    }
+                } else {
+                    double distanceSquared = candidate.position().distanceToSqr(this.position());
+                    if (distanceSquared < nearestOtherDimensionSquared) {
+                        nearestOtherDimensionSquared = distanceSquared;
+                        nearestOtherDimension = candidate;
+                    }
+                }
             }
         }
-        return nearest;
+        return nearestSameDimension != null ? nearestSameDimension : nearestOtherDimension;
     }
 
-    private void lookAtPosition(double targetX, double targetY, double targetZ) {
+    void lookAt(double targetX, double targetY, double targetZ) {
         double deltaX = targetX - this.getX();
         double deltaY = targetY - this.getEyeY();
         double deltaZ = targetZ - this.getZ();
@@ -413,6 +456,19 @@ public class TerminatorBot extends ServerPlayer {
         float yaw = (float) (Mth.atan2(deltaZ, deltaX) * (180.0 / Math.PI)) - 90.0f;
         float pitch = (float) (-(Mth.atan2(deltaY, horizontalDistance) * (180.0 / Math.PI)));
         this.setYHeadRot(yaw);
+        this.setXRot(Mth.clamp(pitch, -90.0f, 90.0f));
+    }
+
+    void lookAtPlayer(ServerPlayer target) {
+        this.lookAt(target.getX(), target.getEyeY(), target.getZ());
+    }
+
+    void lookAtCell(BlockPos cell) {
+        this.lookAt(cell.getX() + 0.5, cell.getY() + 0.5, cell.getZ() + 0.5);
+    }
+
+    void lookAlongBody(float pitch) {
+        this.setYHeadRot(this.getYRot());
         this.setXRot(Mth.clamp(pitch, -90.0f, 90.0f));
     }
 
