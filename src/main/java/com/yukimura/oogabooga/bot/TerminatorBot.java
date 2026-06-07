@@ -207,20 +207,6 @@ public class TerminatorBot extends ServerPlayer {
         }
 
         if (this.isInWater()) {
-            if (this.wantedJumping) {
-                float yawRadians = this.getYRot() * ((float) Math.PI / 180.0f);
-                double horizontal = this.wantedForward * FLUID_ESCAPE_PUSH;
-                Vec3 velocity = this.getDeltaMovement();
-                this.setDeltaMovement(
-                        -Mth.sin(yawRadians) * horizontal,
-                        Math.max(velocity.y, 0.42),
-                        Mth.cos(yawRadians) * horizontal);
-                this.move(MoverType.SELF, this.getDeltaMovement());
-                return;
-            }
-            if (this.wantedUpward > 0f) {
-                this.setJumping(true);
-            }
             super.travel(new Vec3(0.0, this.wantedUpward, this.wantedForward));
             return;
         }

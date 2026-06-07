@@ -376,7 +376,7 @@ final class ChaseNavigator {
             return;
         }
 
-        boolean followingPlannedStep = currentStep != null;
+        boolean followingReachingStep = currentStep != null && this.pathReachesTarget;
         boolean deadReckoning = currentStep == null;
         if (deadReckoning && !jumpMode && this.dropAheadTooDeep(bodyYaw)) {
             bot.wantedForward = 0.0f;
@@ -388,7 +388,7 @@ final class ChaseNavigator {
         }
 
         if (bot.isInWater()) {
-            if (followingPlannedStep) {
+            if (followingReachingStep) {
                 double verticalDelta = destinationY - bot.getY();
                 bot.wantedUpward = verticalDelta > 0.5 ? 1.0f : (verticalDelta < -0.5 ? -1.0f : 0.0f);
             } else {
@@ -408,11 +408,8 @@ final class ChaseNavigator {
             boolean momentumJump = !portalMode && this.shouldMomentumJump(bodyYaw, target);
             bot.wantedJumping = waypointIsHigher || steppable || momentumJump;
         }
-        if (bot.isInWater() && bot.wantedJumping) {
-            bot.wantedUpward = 1.0f;
-        }
 
-        bot.setJumping(bot.isInLava() || (bot.isInWater() && bot.wantedUpward > 0f));
+        bot.setJumping(bot.isInLava() && bot.wantedForward != 0f);
 
         if (jumpMode) {
             bot.lookAlongBody(LOOK_PITCH_JUMP);
