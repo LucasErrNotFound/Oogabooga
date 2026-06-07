@@ -27,6 +27,7 @@ import static com.yukimura.oogabooga.bot.BotTuning.JUMP_TAKEOFF_EDGE;
 import static com.yukimura.oogabooga.bot.BotTuning.MAX_YAW_STEP_DEGREES;
 import static com.yukimura.oogabooga.bot.BotTuning.MOMENTUM_JUMP_MIN_DISTANCE_SQUARED;
 import static com.yukimura.oogabooga.bot.BotTuning.REPATH_INTERVAL_TICKS;
+import static com.yukimura.oogabooga.bot.BotTuning.STACK_STEEPNESS_RATIO;
 import static com.yukimura.oogabooga.bot.BotTuning.STACK_TRIGGER_MIN_HEIGHT;
 import static com.yukimura.oogabooga.bot.BotTuning.STUCK_REPATH_TICKS;
 import static com.yukimura.oogabooga.bot.BotTuning.TARGET_MOVED_THRESHOLD_SQUARED;
@@ -126,9 +127,15 @@ final class ChaseNavigator {
             List<PathStep> chosen = terrainResult != null ? terrainResult.steps() : null;
             boolean reached = terrainResult != null && terrainResult.reachedGoal();
 
+            double goalDeltaX = searchGoal.getX() - start.getX();
+            double goalDeltaZ = searchGoal.getZ() - start.getZ();
+            double horizontalToGoalSq = goalDeltaX * goalDeltaX + goalDeltaZ * goalDeltaZ;
+            double verticalGain = target.getY() - bot.getY();
+            boolean steepClimb = verticalGain > STACK_TRIGGER_MIN_HEIGHT
+                    && verticalGain * verticalGain >= horizontalToGoalSq * STACK_STEEPNESS_RATIO * STACK_STEEPNESS_RATIO;
             if (!reached
                     && TerminatorPathfinder.withinSearchRange(start, searchGoal)
-                    && (target.getY() - bot.getY()) <= STACK_TRIGGER_MIN_HEIGHT) {
+                    && !steepClimb) {
                 int modifyBudget = Mth.clamp(
                         (int) (Math.sqrt(start.distSqr(searchGoal)) * BREAK_BUDGET_PER_BLOCK),
                         BREAK_BUDGET_MIN, BREAK_BUDGET_MAX);
