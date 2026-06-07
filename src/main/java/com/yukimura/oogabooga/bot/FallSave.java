@@ -10,6 +10,7 @@ import net.minecraft.world.phys.Vec3;
 import static com.yukimura.oogabooga.bot.BotTuning.FALL_SAVE_BAD_DROP;
 import static com.yukimura.oogabooga.bot.BotTuning.FALL_SAVE_MIN_DESCENT;
 import static com.yukimura.oogabooga.bot.BotTuning.FALL_SAVE_SCAN;
+import static com.yukimura.oogabooga.bot.BotTuning.LOOK_PITCH_DOWN;
 
 final class FallSave {
 
@@ -78,6 +79,7 @@ final class FallSave {
         bot.setJumping(false);
         Vec3 velocity = bot.getDeltaMovement();
         bot.setDeltaMovement(velocity.x * 0.6, velocity.y, velocity.z * 0.6);
+        bot.lookAlongBody(LOOK_PITCH_DOWN);
         bot.terrain.placeBlockSurvival(bot.blockPosition().below(), target);
     }
 }
