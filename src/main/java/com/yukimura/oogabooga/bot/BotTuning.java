@@ -45,6 +45,7 @@ final class BotTuning {
     static final double STACK_TRIGGER_HORIZONTAL_SQ = 9.0;
     static final double STACK_OVERRIDE_HORIZONTAL_SQ = 16.0;
     static final double STACK_ABORT_HORIZONTAL_SQ = 64.0;
+    static final double STACK_STEEPNESS_RATIO = 1.0;
     static final double BUILD_LEVEL_EPSILON = 0.5;
     static final double BUILD_REACH_SQ = 2.25;
     static final int BUILD_STALL_LIMIT = 60;
