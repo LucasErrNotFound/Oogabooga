@@ -64,6 +64,16 @@ final class BotTuning {
         Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.DOWN, Direction.UP
     };
     static final int PLACE_FAIL_LIMIT = 10;
+    static final float BRIDGE_FORWARD = 0.5f;
+
+    static final float LOOK_PITCH_DOWN = 55.0f;
+    static final float LOOK_PITCH_UP = -45.0f;
+    static final float LOOK_PITCH_JUMP = 12.0f;
+    static final float LOOK_PITCH_EXIT = -12.0f;
+
+    static final int PORTAL_SCAN_RADIUS = 20;
+    static final int PORTAL_SCAN_HEIGHT = 12;
+    static final int PORTAL_SCAN_INTERVAL = 30;
 
     static final double FALL_SAVE_MIN_DESCENT = 0.15;
     static final int FALL_SAVE_BAD_DROP = 3;
