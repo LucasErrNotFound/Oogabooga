@@ -5,7 +5,7 @@ final class PathfinderTuning {
     private PathfinderTuning() {
     }
 
-    static final int MAX_ITERATIONS = 4000;
+    static final int MAX_ITERATIONS = 8000;
     static final int MAX_SEARCH_RADIUS = 128;
     static final int MAX_FALL_SCAN = 256;
 
@@ -27,7 +27,7 @@ final class PathfinderTuning {
     static final double COST_BREAK_BASE = 6.0;
     static final double COST_BREAK_PER_BLOCK = 4.0;
     static final int MAX_BREAK_DROP = 4;
-    static final int BREAK_MAX_ITERATIONS = 8000;
+    static final int BREAK_MAX_ITERATIONS = 12000;
 
     static final double COST_PLACE_BASE = 5.0;
     static final double COST_PLACE_PER_BLOCK = 3.0;
