@@ -49,6 +49,8 @@ final class BotTuning {
     static final double BUILD_REACH_SQ = 2.25;
     static final int BUILD_STALL_LIMIT = 60;
     static final int STACK_MAX_BLOCKS = 64;
+    static final double PILLAR_CENTER_TOLERANCE = 0.16;
+    static final int PILLAR_JUMP_TIMEOUT_TICKS = 8;
 
     static final double BREAK_BUDGET_PER_BLOCK = 1.0;
     static final int BREAK_BUDGET_MIN = 8;
