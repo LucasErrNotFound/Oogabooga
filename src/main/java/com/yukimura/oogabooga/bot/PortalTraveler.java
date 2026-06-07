@@ -8,6 +8,8 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import org.jetbrains.annotations.Nullable;
 
+import static com.yukimura.oogabooga.bot.BotMath.yawToward;
+import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_ENTRY_RANGE_SQ;
 import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_SCAN_HEIGHT;
 import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_SCAN_INTERVAL;
 import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_SCAN_RADIUS;
@@ -30,12 +32,35 @@ final class PortalTraveler {
     void run(ServerPlayer target) {
         Block portalBlock = this.requiredPortalBlock(target);
         BlockPos goal = portalBlock != null ? this.locatePortal(portalBlock) : null;
+        if (goal != null && this.driveIntoPortal(goal)) {
+            return;
+        }
         if (goal == null) {
             goal = this.projectedApproach(target);
         }
         bot.navigator.setGoalOverride(goal);
         bot.navigator.recomputePathIfNeeded(target);
         bot.navigator.followPath(target);
+    }
+
+    private boolean driveIntoPortal(BlockPos portal) {
+        double deltaX = (portal.getX() + 0.5) - bot.getX();
+        double deltaZ = (portal.getZ() + 0.5) - bot.getZ();
+        double horizontalSquared = deltaX * deltaX + deltaZ * deltaZ;
+        if (horizontalSquared > PORTAL_ENTRY_RANGE_SQ || Math.abs(portal.getY() - bot.getY()) > 2.0) {
+            return false;
+        }
+        float yaw = yawToward(deltaX, deltaZ);
+        bot.setYRot(yaw);
+        bot.setYBodyRot(yaw);
+        bot.lookAlongBody(0.0f);
+        bot.setShiftKeyDown(false);
+        bot.setSprinting(false);
+        bot.wantedForward = horizontalSquared > 0.04 ? 1.0f : 0.0f;
+        bot.wantedUpward = 0f;
+        bot.wantedJumping = false;
+        bot.setJumping(false);
+        return true;
     }
 
     private @Nullable Block requiredPortalBlock(ServerPlayer target) {
