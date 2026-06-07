@@ -5,6 +5,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
+import static com.yukimura.oogabooga.bot.BotTuning.LOOK_PITCH_EXIT;
+
 final class FluidEscape {
 
     private final TerminatorBot bot;
@@ -18,7 +20,7 @@ final class FluidEscape {
         if (!feetInFluid && !bot.isInWater() && !bot.isInLava()) {
             return false;
         }
-        if (!bot.isBlockBelow()) {
+        if (!bot.isBlockBelow() && bot.isUnderWater()) {
             return false;
         }
         Direction exit = this.chooseFluidExit(target);
@@ -28,6 +30,7 @@ final class FluidEscape {
         float yaw = exit.toYRot();
         bot.setYRot(yaw);
         bot.setYBodyRot(yaw);
+        bot.lookAlongBody(LOOK_PITCH_EXIT);
         bot.wantedForward = 1.0f;
         bot.wantedUpward = 1.0f;
         bot.wantedJumping = true;
