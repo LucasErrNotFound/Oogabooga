@@ -19,6 +19,7 @@ import static com.yukimura.oogabooga.bot.BotMath.yawToward;
 import static com.yukimura.oogabooga.bot.BotTuning.BUILD_LEVEL_EPSILON;
 import static com.yukimura.oogabooga.bot.BotTuning.BUILD_REACH_SQ;
 import static com.yukimura.oogabooga.bot.BotTuning.BUILD_STALL_LIMIT;
+import static com.yukimura.oogabooga.bot.BotTuning.LOOK_PITCH_DOWN;
 import static com.yukimura.oogabooga.bot.BotTuning.NO_PROGRESS_STACK_TICKS;
 import static com.yukimura.oogabooga.bot.BotTuning.PILLAR_CENTER_TOLERANCE;
 import static com.yukimura.oogabooga.bot.BotTuning.PILLAR_JUMP_TIMEOUT_TICKS;
@@ -163,6 +164,7 @@ final class StackUpBuilder {
         bot.setSprinting(false);
         bot.wantedUpward = 0f;
         bot.wantedForward = 0f;
+        bot.lookAlongBody(LOOK_PITCH_DOWN);
 
         if (this.placePending) {
             this.finishPillarPlacement(target);
@@ -176,6 +178,7 @@ final class StackUpBuilder {
                 bot.setJumping(false);
                 bot.wantedJumping = false;
                 this.recenterOnPillar();
+                bot.lookAtCell(obstruction);
                 if (bot.terrain.isBreakableObstruction(obstruction)) {
                     this.buildStallTicks = 0;
                     if (bot.terrain.progressMine(obstruction)) {
@@ -267,6 +270,7 @@ final class StackUpBuilder {
         Direction facing = cardinalToward(bot.blockPosition(), target.blockPosition());
         bot.setYRot(facing.toYRot());
         bot.setYBodyRot(facing.toYRot());
+        bot.lookAlongBody(LOOK_PITCH_DOWN);
 
         BlockPos frontFeet = bot.blockPosition().relative(facing);
         BlockPos frontHead = frontFeet.above();
@@ -278,6 +282,7 @@ final class StackUpBuilder {
                     : (bot.terrain.isBreakableObstruction(frontHead) ? frontHead : null);
             if (obstruction != null) {
                 this.buildStallTicks = 0;
+                bot.lookAtCell(obstruction);
                 if (bot.terrain.progressMine(obstruction)) {
                     bot.ensureHolding(Items.COBBLESTONE);
                 }
