@@ -24,6 +24,8 @@ import static com.yukimura.oogabooga.bot.BotTuning.FALL_SAVE_BAD_DROP;
 import static com.yukimura.oogabooga.bot.BotTuning.JUMP_BRINK_EDGE;
 import static com.yukimura.oogabooga.bot.BotTuning.JUMP_CROSS_AXIS_TOLERANCE;
 import static com.yukimura.oogabooga.bot.BotTuning.JUMP_TAKEOFF_EDGE;
+import static com.yukimura.oogabooga.bot.BotTuning.LOOK_PITCH_JUMP;
+import static com.yukimura.oogabooga.bot.BotTuning.LOOK_PITCH_UP;
 import static com.yukimura.oogabooga.bot.BotTuning.MAX_YAW_STEP_DEGREES;
 import static com.yukimura.oogabooga.bot.BotTuning.MOMENTUM_JUMP_MIN_DISTANCE_SQUARED;
 import static com.yukimura.oogabooga.bot.BotTuning.REPATH_INTERVAL_TICKS;
@@ -42,9 +44,14 @@ final class ChaseNavigator {
     private int pathIndex = 0;
     private int ticksSinceRepath = 0;
     private @Nullable BlockPos lastTargetBlock = null;
+    private @Nullable BlockPos goalOverride = null;
 
     ChaseNavigator(TerminatorBot bot) {
         this.bot = bot;
+    }
+
+    void setGoalOverride(@Nullable BlockPos goal) {
+        this.goalOverride = goal;
     }
 
     boolean hasPath() {
@@ -100,7 +107,7 @@ final class ChaseNavigator {
 
     void recomputePathIfNeeded(ServerPlayer target) {
         this.ticksSinceRepath++;
-        BlockPos targetBlock = target.blockPosition();
+        BlockPos targetBlock = this.goalOverride != null ? this.goalOverride : target.blockPosition();
         boolean targetMovedFar = this.lastTargetBlock == null
                 || this.lastTargetBlock.distSqr(targetBlock) > TARGET_MOVED_THRESHOLD_SQUARED;
 
@@ -121,7 +128,7 @@ final class ChaseNavigator {
                 bot.resetProgressWatchdog();
             }
             BlockPos start = bot.blockPosition();
-            BlockPos searchGoal = this.approachGoal(target);
+            BlockPos searchGoal = this.goalOverride != null ? this.goalOverride : this.approachGoal(target);
             TerminatorPathfinder.SearchResult terrainResult =
                     TerminatorPathfinder.findPath(bot.level(), start, searchGoal);
             List<PathStep> chosen = terrainResult != null ? terrainResult.steps() : null;
@@ -130,7 +137,7 @@ final class ChaseNavigator {
             double goalDeltaX = searchGoal.getX() - start.getX();
             double goalDeltaZ = searchGoal.getZ() - start.getZ();
             double horizontalToGoalSq = goalDeltaX * goalDeltaX + goalDeltaZ * goalDeltaZ;
-            double verticalGain = target.getY() - bot.getY();
+            double verticalGain = searchGoal.getY() - bot.getY();
             boolean steepClimb = verticalGain > STACK_TRIGGER_MIN_HEIGHT
                     && verticalGain * verticalGain >= horizontalToGoalSq * STACK_STEEPNESS_RATIO * STACK_STEEPNESS_RATIO;
             if (!reached
@@ -175,6 +182,14 @@ final class ChaseNavigator {
             }
         }
         return best != null ? best : playerFeet;
+    }
+
+    private Vec3 navGoalPosition(ServerPlayer target) {
+        if (this.goalOverride != null) {
+            return new Vec3(this.goalOverride.getX() + 0.5,
+                    this.goalOverride.getY(), this.goalOverride.getZ() + 0.5);
+        }
+        return target.position();
     }
 
     private void advancePathIndex() {
@@ -286,6 +301,7 @@ final class ChaseNavigator {
     }
 
     void followPath(ServerPlayer target) {
+        bot.setShiftKeyDown(false);
         boolean hasPath = this.currentPath != null && !this.currentPath.isEmpty();
         if (hasPath) {
             this.advancePathIndex();
@@ -303,6 +319,9 @@ final class ChaseNavigator {
                     || currentStep.kind() == MovementKind.BREAK_DOWN);
         boolean placeMode = currentStep != null && currentStep.kind() == MovementKind.PLACE_BRIDGE;
 
+        boolean portalMode = this.goalOverride != null;
+        Vec3 navGoal = this.navGoalPosition(target);
+
         float desiredYaw;
         double destinationY;
         boolean waypointIsHigher = false;
@@ -316,7 +335,7 @@ final class ChaseNavigator {
                     Math.abs(landing.getZ() - takeoff.getZ()));
         } else if (climbMode) {
             destinationY = currentStep.position().getY();
-            desiredYaw = yawToward(target.getX() - bot.getX(), target.getZ() - bot.getZ());
+            desiredYaw = yawToward(navGoal.x - bot.getX(), navGoal.z - bot.getZ());
             bot.currentJumpDistance = 0;
         } else if (currentStep != null) {
             BlockPos waypoint = currentStep.position();
@@ -326,8 +345,8 @@ final class ChaseNavigator {
             desiredYaw = yawToward(aim.x - bot.getX(), aim.z - bot.getZ());
             bot.currentJumpDistance = 0;
         } else {
-            destinationY = target.getY();
-            desiredYaw = yawToward(target.getX() - bot.getX(), target.getZ() - bot.getZ());
+            destinationY = navGoal.y;
+            desiredYaw = yawToward(navGoal.x - bot.getX(), navGoal.z - bot.getZ());
             bot.currentJumpDistance = 0;
         }
 
@@ -339,6 +358,7 @@ final class ChaseNavigator {
 
         if (climbMode) {
             this.runClimb(currentStep);
+            bot.lookAlongBody(LOOK_PITCH_UP);
             bot.updateStuckTracking();
             bot.terrain.clearMiningProgress();
             return;
@@ -356,9 +376,9 @@ final class ChaseNavigator {
             return;
         }
 
-        boolean followingRealStep = currentStep != null && this.pathReachesTarget;
-        boolean plannedFall = currentStep != null && currentStep.kind() == MovementKind.FALL;
-        if (!followingRealStep && !plannedFall && !jumpMode && this.dropAheadTooDeep(bodyYaw)) {
+        boolean followingPlannedStep = currentStep != null;
+        boolean deadReckoning = currentStep == null;
+        if (deadReckoning && !jumpMode && this.dropAheadTooDeep(bodyYaw)) {
             bot.wantedForward = 0.0f;
             bot.setSprinting(false);
             this.primeRepath();
@@ -368,7 +388,7 @@ final class ChaseNavigator {
         }
 
         if (bot.isInWater()) {
-            if (followingRealStep) {
+            if (followingPlannedStep) {
                 double verticalDelta = destinationY - bot.getY();
                 bot.wantedUpward = verticalDelta > 0.5 ? 1.0f : (verticalDelta < -0.5 ? -1.0f : 0.0f);
             } else {
@@ -385,11 +405,22 @@ final class ChaseNavigator {
             bot.wantedJumping = this.shouldLaunchParkourJump(bodyYaw);
         } else {
             steppable = this.isSteppableWallAhead(bodyYaw);
-            boolean momentumJump = this.shouldMomentumJump(bodyYaw, target);
+            boolean momentumJump = !portalMode && this.shouldMomentumJump(bodyYaw, target);
             bot.wantedJumping = waypointIsHigher || steppable || momentumJump;
         }
+        if (bot.isInWater() && bot.wantedJumping) {
+            bot.wantedUpward = 1.0f;
+        }
 
-        bot.setJumping(bot.isInLava() && bot.wantedForward != 0f);
+        bot.setJumping(bot.isInLava() || (bot.isInWater() && bot.wantedUpward > 0f));
+
+        if (jumpMode) {
+            bot.lookAlongBody(LOOK_PITCH_JUMP);
+        } else if (!portalMode && bot.combat.hasAttackLineOfSight(target)) {
+            bot.lookAtPlayer(target);
+        } else {
+            bot.lookAlongBody(0.0f);
+        }
 
         boolean patched = !jumpMode && bot.terrain.tryPatchLaneAhead(bodyYaw, target);
 
