@@ -12,6 +12,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
+import org.jetbrains.annotations.Nullable;
 
 import static com.yukimura.oogabooga.bot.BotMath.cardinalToward;
 import static com.yukimura.oogabooga.bot.BotMath.yawToward;
@@ -19,6 +20,8 @@ import static com.yukimura.oogabooga.bot.BotTuning.BUILD_LEVEL_EPSILON;
 import static com.yukimura.oogabooga.bot.BotTuning.BUILD_REACH_SQ;
 import static com.yukimura.oogabooga.bot.BotTuning.BUILD_STALL_LIMIT;
 import static com.yukimura.oogabooga.bot.BotTuning.NO_PROGRESS_STACK_TICKS;
+import static com.yukimura.oogabooga.bot.BotTuning.PILLAR_CENTER_TOLERANCE;
+import static com.yukimura.oogabooga.bot.BotTuning.PILLAR_JUMP_TIMEOUT_TICKS;
 import static com.yukimura.oogabooga.bot.BotTuning.STACK_ABORT_HORIZONTAL_SQ;
 import static com.yukimura.oogabooga.bot.BotTuning.STACK_MAX_BLOCKS;
 import static com.yukimura.oogabooga.bot.BotTuning.STACK_OVERRIDE_HORIZONTAL_SQ;
@@ -31,6 +34,7 @@ final class StackUpBuilder {
     private boolean stackingUp = false;
     private boolean placePending = false;
     private int placeFloorY = Integer.MIN_VALUE;
+    private int placePendingTicks = 0;
     private int pillarX = Integer.MIN_VALUE;
     private int pillarZ = Integer.MIN_VALUE;
     private int pillarBlocksPlaced = 0;
@@ -82,6 +86,8 @@ final class StackUpBuilder {
             return true;
         }
 
+        boolean hasUpwardPath = bot.navigator.reachesTarget() && bot.navigator.maxPathY() >= target.getY() - 1.0;
+
         boolean upwardStalled = bot.noProgressTicks > NO_PROGRESS_STACK_TICKS;
         if (upwardStalled
                 && heightToPlayer > STACK_TRIGGER_MIN_HEIGHT
@@ -90,7 +96,13 @@ final class StackUpBuilder {
             return true;
         }
 
-        boolean hasUpwardPath = bot.navigator.reachesTarget() && bot.navigator.maxPathY() >= target.getY() - 1.0;
+        if (upwardStalled
+                && !hasUpwardPath
+                && heightToPlayer > STACK_TRIGGER_MIN_HEIGHT
+                && horizontalSquared <= STACK_ABORT_HORIZONTAL_SQ
+                && bot.isBlockBelow()) {
+            return true;
+        }
 
         if (bot.inHitRecovery()
                 && heightToPlayer > STACK_TRIGGER_MIN_HEIGHT
@@ -112,6 +124,7 @@ final class StackUpBuilder {
     void enterStackUp() {
         this.stackingUp = true;
         this.placePending = false;
+        this.placePendingTicks = 0;
         bot.terrain.clearMiningProgress();
         bot.resetProgressWatchdog();
         this.pillarBlocksPlaced = 0;
@@ -146,18 +159,23 @@ final class StackUpBuilder {
         } else if (!bot.isBlockBelow()) {
             bot.wantedJumping = false;
         } else if (target.getY() - bot.getY() > BUILD_LEVEL_EPSILON) {
-            BlockPos headRiseCell = bot.blockPosition().above().above();
-            if (bot.terrain.isBreakableObstruction(headRiseCell)) {
+            this.pillarX = Mth.floor(bot.getX());
+            this.pillarZ = Mth.floor(bot.getZ());
+            BlockPos obstruction = this.findHeadObstruction();
+            if (obstruction != null) {
                 bot.setJumping(false);
                 bot.wantedJumping = false;
                 this.recenterOnPillar();
-                this.buildStallTicks = 0;
-                if (bot.terrain.progressMine(headRiseCell)) {
-                    bot.ensureHolding(Items.COBBLESTONE);
+                if (bot.terrain.isBreakableObstruction(obstruction)) {
+                    this.buildStallTicks = 0;
+                    if (bot.terrain.progressMine(obstruction)) {
+                        bot.ensureHolding(Items.COBBLESTONE);
+                    }
                 }
-            } else if (bot.isSolid(headRiseCell)) {
+            } else if (!this.isCenteredOnPillar()) {
                 bot.setJumping(false);
                 bot.wantedJumping = false;
+                this.recenterOnPillar();
             } else {
                 bot.terrain.clearMiningProgress();
                 this.startPillarCycle();
@@ -179,15 +197,45 @@ final class StackUpBuilder {
                 (this.pillarX + 0.5 - bot.getX()) * 0.2, 0.0, (this.pillarZ + 0.5 - bot.getZ()) * 0.2));
     }
 
+    private @Nullable BlockPos findHeadObstruction() {
+        int riseY = bot.blockPosition().getY() + 2;
+        double halfWidth = bot.getBbWidth() / 2.0;
+        int minX = Mth.floor(bot.getX() - halfWidth);
+        int maxX = Mth.floor(bot.getX() + halfWidth);
+        int minZ = Mth.floor(bot.getZ() - halfWidth);
+        int maxZ = Mth.floor(bot.getZ() + halfWidth);
+        BlockPos solidFallback = null;
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                BlockPos cell = new BlockPos(x, riseY, z);
+                if (bot.terrain.isBreakableObstruction(cell)) {
+                    return cell;
+                }
+                if (bot.isSolid(cell)) {
+                    solidFallback = cell;
+                }
+            }
+        }
+        return solidFallback;
+    }
+
+    private boolean isCenteredOnPillar() {
+        double offsetX = Math.abs(bot.getX() - (this.pillarX + 0.5));
+        double offsetZ = Math.abs(bot.getZ() - (this.pillarZ + 0.5));
+        return offsetX <= PILLAR_CENTER_TOLERANCE && offsetZ <= PILLAR_CENTER_TOLERANCE;
+    }
+
     private void startPillarCycle() {
         bot.setJumping(false);
         this.recenterOnPillar();
         this.placeFloorY = Mth.floor(bot.getY()) - 1;
+        this.placePendingTicks = 0;
         bot.wantedJumping = true;
         this.placePending = true;
     }
 
     private void finishPillarPlacement(ServerPlayer target) {
+        this.placePendingTicks++;
         bot.wantedJumping = false;
         if (bot.getY() >= this.placeFloorY + 2.0) {
             BlockPos cell = new BlockPos(this.pillarX, this.placeFloorY + 1, this.pillarZ);
@@ -197,6 +245,9 @@ final class StackUpBuilder {
                 this.pillarBlocksPlaced++;
             }
             this.placePending = false;
+        } else if (this.placePendingTicks > PILLAR_JUMP_TIMEOUT_TICKS) {
+            this.placePending = false;
+            bot.terrain.clearMiningProgress();
         }
     }
 
