@@ -13,14 +13,18 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import org.jetbrains.annotations.Nullable;
 
 import static com.yukimura.oogabooga.bot.BotMath.cardinalToward;
+import static com.yukimura.oogabooga.bot.BotTuning.BRIDGE_FORWARD;
 import static com.yukimura.oogabooga.bot.BotTuning.BUILD_BLOCK;
+import static com.yukimura.oogabooga.bot.BotTuning.LOOK_PITCH_DOWN;
 import static com.yukimura.oogabooga.bot.BotTuning.PLACE_FAIL_LIMIT;
 import static com.yukimura.oogabooga.bot.BotTuning.PLACE_REACH_SQ;
 import static com.yukimura.oogabooga.bot.BotTuning.SUPPORT_SEARCH_ORDER;
@@ -68,6 +72,7 @@ final class TerrainModifier {
             BlockPos floorCell = bot.blockPosition().below();
             if (this.isBreakableObstruction(floorCell)) {
                 this.breakModeActive = true;
+                bot.lookAtCell(floorCell);
                 this.progressMine(floorCell);
             } else {
                 this.breakModeActive = false;
@@ -96,6 +101,7 @@ final class TerrainModifier {
         if (obstruction != null) {
             this.breakModeActive = true;
             bot.wantedForward = 0f;
+            bot.lookAtCell(obstruction);
             this.progressMine(obstruction);
             bot.dampCrossAxis(facing);
         } else {
@@ -170,7 +176,15 @@ final class TerrainModifier {
         Direction face = towardSupport.getOpposite();
         Vec3 hitVec = Vec3.atCenterOf(supportPos)
                 .add(face.getStepX() * 0.5, face.getStepY() * 0.5, face.getStepZ() * 0.5);
-        if (bot.getEyePosition().distanceToSqr(hitVec) > PLACE_REACH_SQ) {
+        Vec3 eye = bot.getEyePosition();
+        if (eye.distanceToSqr(hitVec) > PLACE_REACH_SQ) {
+            return false;
+        }
+        bot.lookAt(hitVec.x, hitVec.y, hitVec.z);
+        BlockHitResult sightLine = bot.level().clip(new ClipContext(
+                eye, hitVec, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, bot));
+        if (sightLine.getType() == HitResult.Type.BLOCK
+                && !sightLine.getBlockPos().equals(supportPos)) {
             return false;
         }
         bot.holdBuildBlock();
@@ -211,6 +225,8 @@ final class TerrainModifier {
         bot.wantedUpward = 0f;
         bot.wantedJumping = false;
         bot.setJumping(false);
+        bot.setSprinting(false);
+        bot.setShiftKeyDown(true);
 
         BlockPos previous = bot.navigator.previousStepPosition();
         BlockPos destination = step.position();
@@ -223,17 +239,17 @@ final class TerrainModifier {
         boolean supported = bot.isSolid(floorCell) || this.placeBlockSurvival(floorCell, target);
         if (supported) {
             this.placeFailTicks = 0;
-            bot.setSprinting(true);
-            bot.wantedForward = 1.0f;
+            boolean standing = bot.isBlockBelow() && bot.isSolid(floorCell);
+            bot.wantedForward = standing ? BRIDGE_FORWARD : 0.0f;
         } else {
             this.placeFailTicks++;
-            bot.setSprinting(false);
             bot.wantedForward = 0.0f;
             if (this.placeFailTicks > PLACE_FAIL_LIMIT) {
                 bot.navigator.clearPath();
                 this.placeFailTicks = 0;
             }
         }
+        bot.lookAlongBody(LOOK_PITCH_DOWN);
         bot.dampCrossAxis(facing);
     }
 
