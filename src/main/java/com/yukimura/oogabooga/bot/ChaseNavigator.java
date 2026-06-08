@@ -379,6 +379,10 @@ final class ChaseNavigator {
         boolean followingReachingStep = currentStep != null && this.pathReachesTarget;
         boolean deadReckoning = currentStep == null;
         if (deadReckoning && !jumpMode && this.dropAheadTooDeep(bodyYaw)) {
+            if (bot.terrain.tryBridgeGapAhead(bodyYaw, target)) {
+                bot.updateStuckTracking();
+                return;
+            }
             bot.wantedForward = 0.0f;
             bot.setSprinting(false);
             this.primeRepath();
@@ -425,7 +429,6 @@ final class ChaseNavigator {
         boolean reactiveBreak = !jumpMode
                 && bot.horizontalCollision
                 && bot.stuckTicks > BREAK_GRACE_TICKS
-                && !bot.isInWater()
                 && !steppable
                 && bot.isBlockBelow();
         if (reactiveBreak) {

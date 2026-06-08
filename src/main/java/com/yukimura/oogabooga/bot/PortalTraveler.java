@@ -2,13 +2,19 @@ package com.yukimura.oogabooga.bot;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Relative;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Set;
+
 import static com.yukimura.oogabooga.bot.BotMath.yawToward;
+import static com.yukimura.oogabooga.bot.BotTuning.ANCHOR_REACHED_SQ;
+import static com.yukimura.oogabooga.bot.BotTuning.CROSS_DIM_TIMEOUT_TICKS;
 import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_ENTRY_RANGE_SQ;
 import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_SCAN_HEIGHT;
 import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_SCAN_INTERVAL;
@@ -19,6 +25,8 @@ final class PortalTraveler {
     private final TerminatorBot bot;
     private @Nullable BlockPos cachedPortal = null;
     private int scanCooldown = 0;
+    private int crossDimTicks = 0;
+    private @Nullable BlockPos portalAnchor = null;
 
     PortalTraveler(TerminatorBot bot) {
         this.bot = bot;
@@ -27,20 +35,43 @@ final class PortalTraveler {
     void reset() {
         this.cachedPortal = null;
         this.scanCooldown = 0;
+        this.crossDimTicks = 0;
+        this.portalAnchor = null;
     }
 
     void run(ServerPlayer target) {
+        this.crossDimTicks++;
         Block portalBlock = this.requiredPortalBlock(target);
         BlockPos goal = portalBlock != null ? this.locatePortal(portalBlock) : null;
         if (goal != null && this.driveIntoPortal(goal)) {
             return;
         }
+        if (this.crossDimTicks > CROSS_DIM_TIMEOUT_TICKS) {
+            this.teleportIntoTargetDimension(target);
+            return;
+        }
         if (goal == null) {
-            goal = this.projectedApproach(target);
+            goal = this.stableAnchor(target);
         }
         bot.navigator.setGoalOverride(goal);
         bot.navigator.recomputePathIfNeeded(target);
         bot.navigator.followPath(target);
+    }
+
+    private void teleportIntoTargetDimension(ServerPlayer target) {
+        if (target.level() instanceof ServerLevel targetLevel) {
+            bot.teleportTo(targetLevel, target.getX(), target.getY(), target.getZ(),
+                    Set.<Relative>of(), bot.getYRot(), bot.getXRot(), false);
+        }
+        this.reset();
+    }
+
+    private BlockPos stableAnchor(ServerPlayer target) {
+        if (this.portalAnchor == null
+                || bot.blockPosition().distSqr(this.portalAnchor) < ANCHOR_REACHED_SQ) {
+            this.portalAnchor = this.projectedApproach(target);
+        }
+        return this.portalAnchor;
     }
 
     private boolean driveIntoPortal(BlockPos portal) {

@@ -274,4 +274,32 @@ final class TerrainModifier {
         }
         return false;
     }
+
+    boolean tryBridgeGapAhead(float bodyYaw, ServerPlayer target) {
+        if (bot.isInWater() || bot.isInLava() || !bot.isBlockBelow()) {
+            return false;
+        }
+        Direction facing = Direction.fromYRot(bodyYaw);
+        BlockPos frontFeet = bot.blockPosition().relative(facing);
+        BlockPos frontSupport = frontFeet.below();
+        if (!bot.isPassable(frontFeet) || !bot.isPassable(frontFeet.above())) {
+            return false;
+        }
+        if (bot.isSolid(frontSupport)) {
+            return false;
+        }
+        bot.setSprinting(false);
+        bot.setShiftKeyDown(true);
+        bot.setYRot(facing.toYRot());
+        bot.setYBodyRot(facing.toYRot());
+        bot.holdBuildBlock();
+        boolean supported = this.placeBlockSurvival(frontSupport, target);
+        bot.wantedUpward = 0f;
+        bot.wantedJumping = false;
+        bot.setJumping(false);
+        bot.wantedForward = supported ? BRIDGE_FORWARD : 0.0f;
+        bot.lookAlongBody(LOOK_PITCH_DOWN);
+        bot.dampCrossAxis(facing);
+        return true;
+    }
 }

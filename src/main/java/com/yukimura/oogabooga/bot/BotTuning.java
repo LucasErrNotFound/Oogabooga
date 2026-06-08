@@ -75,6 +75,8 @@ final class BotTuning {
     static final int PORTAL_SCAN_HEIGHT = 12;
     static final int PORTAL_SCAN_INTERVAL = 30;
     static final double PORTAL_ENTRY_RANGE_SQ = 6.25;
+    static final int CROSS_DIM_TIMEOUT_TICKS = 1200;
+    static final double ANCHOR_REACHED_SQ = 16.0;
 
     static final double FALL_SAVE_MIN_DESCENT = 0.15;
     static final int FALL_SAVE_BAD_DROP = 3;
