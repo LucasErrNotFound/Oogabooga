@@ -422,11 +422,14 @@ final class ChaseNavigator {
         boolean patched = !jumpMode && bot.terrain.tryPatchLaneAhead(bodyYaw, target);
 
         bot.updateStuckTracking();
-        if (!jumpMode
+        boolean reactiveBreak = !jumpMode
                 && bot.horizontalCollision
                 && bot.stuckTicks > BREAK_GRACE_TICKS
                 && !bot.isInWater()
-                && !steppable) {
+                && !steppable
+                && bot.isBlockBelow();
+        if (reactiveBreak) {
+            bot.wantedJumping = false;
             bot.terrain.breakBlockInFront(bodyYaw);
         } else if (!patched) {
             bot.terrain.clearMiningProgress();

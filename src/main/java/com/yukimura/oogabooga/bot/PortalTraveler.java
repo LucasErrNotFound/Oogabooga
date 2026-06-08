@@ -50,6 +50,7 @@ final class PortalTraveler {
         if (horizontalSquared > PORTAL_ENTRY_RANGE_SQ || Math.abs(portal.getY() - bot.getY()) > 2.0) {
             return false;
         }
+        bot.setPortalCooldown(0);
         float yaw = yawToward(deltaX, deltaZ);
         bot.setYRot(yaw);
         bot.setYBodyRot(yaw);
