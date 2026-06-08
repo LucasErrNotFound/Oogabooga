@@ -16,12 +16,15 @@ import java.util.Set;
 import static com.yukimura.oogabooga.bot.BotMath.yawToward;
 import static com.yukimura.oogabooga.bot.BotTuning.ANCHOR_REACHED_SQ;
 import static com.yukimura.oogabooga.bot.BotTuning.CROSS_DIM_TIMEOUT_TICKS;
+import static com.yukimura.oogabooga.bot.BotTuning.END_ESCAPE_DELAY_TICKS;
 import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_ENTRY_RANGE_SQ;
 import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_SCAN_HEIGHT;
 import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_SCAN_INTERVAL;
 import static com.yukimura.oogabooga.bot.BotTuning.PORTAL_SCAN_RADIUS;
 
 final class PortalTraveler {
+
+    private static final BlockPos END_SPAWN_PLATFORM = new BlockPos(100, 50, 0);
 
     private final TerminatorBot bot;
     private @Nullable BlockPos cachedPortal = null;
@@ -58,13 +61,19 @@ final class PortalTraveler {
         if (this.crossingExitPosition == null) {
             this.crossingExitPosition = target.position();
         }
-        Block portalBlock = this.requiredPortalBlock(target);
-        BlockPos goal = portalBlock != null ? this.locatePortal(portalBlock) : null;
-        if (goal != null && this.driveIntoPortal(goal)) {
+        if (bot.level().dimension().equals(Level.END)
+                && !target.level().dimension().equals(Level.END)
+                && this.crossDimTicks > END_ESCAPE_DELAY_TICKS) {
+            this.teleportToTargetPosition(target);
             return;
         }
         if (this.crossDimTicks > CROSS_DIM_TIMEOUT_TICKS) {
             this.teleportIntoTargetDimension(target);
+            return;
+        }
+        Block portalBlock = this.requiredPortalBlock(target);
+        BlockPos goal = portalBlock != null ? this.locatePortal(portalBlock) : null;
+        if (goal != null && this.driveIntoPortal(goal)) {
             return;
         }
         if (goal == null) {
@@ -77,8 +86,25 @@ final class PortalTraveler {
 
     private void teleportIntoTargetDimension(ServerPlayer target) {
         if (target.level() instanceof ServerLevel targetLevel) {
-            Vec3 landing = this.crossingExitPosition != null ? this.crossingExitPosition : target.position();
+            Vec3 landing = this.crossDimensionLanding(target, targetLevel);
             bot.teleportTo(targetLevel, landing.x, landing.y, landing.z,
+                    Set.<Relative>of(), bot.getYRot(), bot.getXRot(), false);
+        }
+        this.reset();
+    }
+
+    private Vec3 crossDimensionLanding(ServerPlayer target, ServerLevel targetLevel) {
+        if (targetLevel.dimension().equals(Level.END)) {
+            return new Vec3(END_SPAWN_PLATFORM.getX() + 0.5,
+                    END_SPAWN_PLATFORM.getY(),
+                    END_SPAWN_PLATFORM.getZ() + 0.5);
+        }
+        return this.crossingExitPosition != null ? this.crossingExitPosition : target.position();
+    }
+
+    private void teleportToTargetPosition(ServerPlayer target) {
+        if (target.level() instanceof ServerLevel targetLevel) {
+            bot.teleportTo(targetLevel, target.getX(), target.getY(), target.getZ(),
                     Set.<Relative>of(), bot.getYRot(), bot.getXRot(), false);
         }
         this.reset();
@@ -108,8 +134,9 @@ final class PortalTraveler {
         bot.setSprinting(false);
         bot.wantedForward = horizontalSquared > 0.04 ? 1.0f : 0.0f;
         bot.wantedUpward = 0f;
-        bot.wantedJumping = false;
-        bot.setJumping(false);
+        boolean portalAbove = portal.getY() > bot.getY() + 0.5;
+        bot.wantedJumping = portalAbove;
+        bot.setJumping(portalAbove);
         return true;
     }
 

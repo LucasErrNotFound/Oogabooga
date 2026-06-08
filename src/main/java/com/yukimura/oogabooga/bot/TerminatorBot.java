@@ -2,13 +2,17 @@ package com.yukimura.oogabooga.bot;
 
 import com.mojang.authlib.GameProfile;
 import com.yukimura.oogabooga.ai.TerminatorPathfinder;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
@@ -40,6 +44,7 @@ import static com.yukimura.oogabooga.bot.BotTuning.JUMP_LAUNCH_BASE;
 import static com.yukimura.oogabooga.bot.BotTuning.JUMP_LAUNCH_PER_BLOCK;
 import static com.yukimura.oogabooga.bot.BotTuning.STUCK_FORWARD_PROGRESS;
 import static com.yukimura.oogabooga.bot.BotTuning.STUCK_MOVEMENT_THRESHOLD_SQUARED;
+import static com.yukimura.oogabooga.bot.BotTuning.WIN_DISCONNECT_TICKS;
 
 public class TerminatorBot extends ServerPlayer {
 
@@ -70,6 +75,7 @@ public class TerminatorBot extends ServerPlayer {
     int stuckTicks = 0;
     int noProgressTicks = 0;
     int recoveryTicks = 0;
+    private int winDisconnectTicks = -1;
 
     private Vec3 previousPosition = Vec3.ZERO;
     private double bestApproachDistanceSq = Double.MAX_VALUE;
@@ -152,6 +158,27 @@ public class TerminatorBot extends ServerPlayer {
         this.terrain.clearPlaceFailTicks();
         this.stackUp.exitStackUp();
         this.combat.exitCombat();
+    }
+
+    public void onPlayerWon() {
+        if (this.winDisconnectTicks >= 0) {
+            return;
+        }
+        this.stopHunt();
+        MinecraftServer server = this.level().getServer();
+        if (server != null) {
+            Component message = Component.literal("<")
+                    .append(Component.literal(BOT_NAME).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD))
+                    .append(Component.literal("> "))
+                    .append(Component.literal("You Win! I can finally rest...")
+                            .withStyle(ChatFormatting.LIGHT_PURPLE));
+            server.getPlayerList().broadcastSystemMessage(message, false);
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 1.0f, 1.0f);
+            }
+        }
+        this.winDisconnectTicks = WIN_DISCONNECT_TICKS;
     }
 
     @Override
@@ -273,6 +300,15 @@ public class TerminatorBot extends ServerPlayer {
         }
         if (this.recoveryTicks > 0) {
             this.recoveryTicks--;
+        }
+        if (this.winDisconnectTicks > 0) {
+            this.winDisconnectTicks--;
+            if (this.winDisconnectTicks == 0) {
+                MinecraftServer server = this.level().getServer();
+                if (server != null) {
+                    remove(server);
+                }
+            }
         }
     }
 
