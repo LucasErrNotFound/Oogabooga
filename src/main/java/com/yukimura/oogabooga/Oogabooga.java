@@ -16,5 +16,6 @@ public class Oogabooga implements ModInitializer {
 	public void onInitialize() {
 		CommandRegistrationCallback.EVENT.register(
 			(dispatcher, registryAccess, environment) -> TerminatorCommand.register(dispatcher));
+		DragonDeathHandler.register();
 	}
 }
