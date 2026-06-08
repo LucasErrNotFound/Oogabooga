@@ -298,7 +298,7 @@ public class TerminatorBot extends ServerPlayer {
             return;
         }
         this.navigator.setGoalOverride(null);
-        this.portal.reset();
+        this.portal.onSameDimension(target);
         this.setShiftKeyDown(false);
 
         this.navigator.recomputePathIfNeeded(target);

@@ -8,6 +8,7 @@ import net.minecraft.world.entity.Relative;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Set;
@@ -27,6 +28,8 @@ final class PortalTraveler {
     private int scanCooldown = 0;
     private int crossDimTicks = 0;
     private @Nullable BlockPos portalAnchor = null;
+    private @Nullable BlockPos crossingEntryAnchor = null;
+    private @Nullable Vec3 crossingExitPosition = null;
 
     PortalTraveler(TerminatorBot bot) {
         this.bot = bot;
@@ -37,10 +40,24 @@ final class PortalTraveler {
         this.scanCooldown = 0;
         this.crossDimTicks = 0;
         this.portalAnchor = null;
+        this.crossingEntryAnchor = null;
+        this.crossingExitPosition = null;
+    }
+
+    void onSameDimension(ServerPlayer target) {
+        this.crossingEntryAnchor = target.blockPosition();
+        this.cachedPortal = null;
+        this.scanCooldown = 0;
+        this.crossDimTicks = 0;
+        this.portalAnchor = null;
+        this.crossingExitPosition = null;
     }
 
     void run(ServerPlayer target) {
         this.crossDimTicks++;
+        if (this.crossingExitPosition == null) {
+            this.crossingExitPosition = target.position();
+        }
         Block portalBlock = this.requiredPortalBlock(target);
         BlockPos goal = portalBlock != null ? this.locatePortal(portalBlock) : null;
         if (goal != null && this.driveIntoPortal(goal)) {
@@ -51,7 +68,7 @@ final class PortalTraveler {
             return;
         }
         if (goal == null) {
-            goal = this.stableAnchor(target);
+            goal = this.crossingEntryAnchor != null ? this.crossingEntryAnchor : this.stableAnchor(target);
         }
         bot.navigator.setGoalOverride(goal);
         bot.navigator.recomputePathIfNeeded(target);
@@ -60,7 +77,8 @@ final class PortalTraveler {
 
     private void teleportIntoTargetDimension(ServerPlayer target) {
         if (target.level() instanceof ServerLevel targetLevel) {
-            bot.teleportTo(targetLevel, target.getX(), target.getY(), target.getZ(),
+            Vec3 landing = this.crossingExitPosition != null ? this.crossingExitPosition : target.position();
+            bot.teleportTo(targetLevel, landing.x, landing.y, landing.z,
                     Set.<Relative>of(), bot.getYRot(), bot.getXRot(), false);
         }
         this.reset();
